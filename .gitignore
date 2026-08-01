@@ -1,0 +1,41 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ---- Datasets & artifacts (never commit these) ----
+data/*
+!data/.gitkeep
+checkpoints/*
+!checkpoints/.gitkeep
+*.pt
+*.pth
+*.onnx
+runs/
+logs/
+metrics.json
+
+# ---- Secrets ----
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets.yaml
+k8s/*-secret.yaml
+kubeconfig
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+scripts/*.sh
+scripts/*.bat
+scripts/*.ps1
