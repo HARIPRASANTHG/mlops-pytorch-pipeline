@@ -1,0 +1,11 @@
+# CPU wheels - used inside docker/Dockerfile.train so the image stays ~1.2 GB
+# and can run on a Minikube node with no GPU.
+# For local GPU training on the RTX 5070 Ti use requirements/train-gpu.txt.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+torch==2.9.1+cpu
+torchvision==0.24.1+cpu
+numpy==2.2.6
+PyYAML==6.0.2
+tqdm==4.67.1
+tensorboard==2.19.0
