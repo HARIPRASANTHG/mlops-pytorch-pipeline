@@ -1,0 +1,10 @@
+# Inference-only dependency set: no tensorboard, no tqdm, CPU wheels only.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+torch==2.9.1+cpu
+torchvision==0.24.1+cpu
+numpy==2.2.6
+Flask==3.1.0
+gunicorn==23.0.0
+Pillow==11.3.0
+PyYAML==6.0.2
