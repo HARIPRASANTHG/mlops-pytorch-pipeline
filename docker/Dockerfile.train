@@ -1,0 +1,57 @@
+# syntax=docker/dockerfile:1.7
+# ---------------------------------------------------------------------------
+# Multi-stage training image.
+#   Stage 1 (base)     : resolve + install pinned deps into a virtualenv
+#   Stage 2 (training) : copy only the venv and the source -> no pip cache,
+#                        no build toolchain, no requirements files in the layer
+# Build:
+#   docker build -f docker/Dockerfile.train -t mlops-train:v1 .
+# ---------------------------------------------------------------------------
+
+# ---------- Stage 1: dependencies ----------
+FROM python:3.11-slim AS base
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
+
+WORKDIR /app
+
+RUN python -m venv "$VIRTUAL_ENV"
+
+# Copied on its own so the (slow) torch install is cached until pins change.
+COPY requirements/train.txt ./train.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r train.txt
+
+# ---------- Stage 2: training runtime ----------
+FROM python:3.11-slim AS training
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH" \
+    TRAINING_CONFIG=/app/configs/training_config.yaml \
+    OMP_NUM_THREADS=4
+
+WORKDIR /app
+
+COPY --from=base /opt/venv /opt/venv
+COPY src/ ./src/
+COPY configs/ ./configs/
+
+# Training writes to two mounted volumes; create them with the right owner up
+# front so the non-root user can write even when Docker creates the mountpoint.
+RUN useradd --create-home --uid 1000 trainer && \
+    mkdir -p /app/data /app/checkpoints && \
+    chown -R trainer:trainer /app
+USER trainer
+
+VOLUME ["/app/data", "/app/checkpoints"]
+
+LABEL org.opencontainers.image.title="mlops-train" \
+      org.opencontainers.image.description="CIFAR-10 PyTorch training job" \
+      org.opencontainers.image.source="https://github.com/<your-user>/mlops-pytorch-pipeline"
+
+ENTRYPOINT ["python", "src/train.py"]

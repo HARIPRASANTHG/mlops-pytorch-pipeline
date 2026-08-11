@@ -1,0 +1,12 @@
+# GPU wheels for NVIDIA Blackwell (RTX 50-series, compute capability sm_120).
+# sm_120 kernels ship in the CUDA 12.8 builds - the default PyPI wheels stop at
+# sm_90 and will print "sm_120 is not compatible with the current PyTorch
+# installation" on this laptop.
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+torch==2.9.1+cu128
+torchvision==0.24.1+cu128
+numpy==2.2.6
+PyYAML==6.0.2
+tqdm==4.67.1
+tensorboard==2.19.0
