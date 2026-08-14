@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CIFAR-10 classifier</title>
+<style>
+  :root {
+    --paper: #eef1f6;
+    --card: #ffffff;
+    --ink: #141b26;
+    --muted: #5d6b80;
+    --line: #d3dae5;
+    --signal: #2f4bd6;
+    --hit: #0f8b6c;
+    --miss: #c8452d;
+    --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans);
+    line-height: 1.5;
+  }
+  header {
+    border-bottom: 1px solid var(--line); background: var(--card);
+    padding: 22px 28px; display: flex; flex-wrap: wrap; gap: 16px;
+    align-items: baseline; justify-content: space-between;
+  }
+  h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+  h1 span { font-family: var(--mono); color: var(--signal); }
+  .meta { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  main { max-width: 1080px; margin: 0 auto; padding: 26px 20px 60px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .tab {
+    font: 600 13px/1 var(--sans); padding: 11px 18px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--card); color: var(--muted); cursor: pointer;
+  }
+  .tab[aria-selected="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .tab:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px;
+  }
+  .row { display: grid; grid-template-columns: 300px 1fr; gap: 20px; }
+  @media (max-width: 760px) { .row { grid-template-columns: 1fr; } }
+  button.action {
+    font: 600 14px/1 var(--sans); background: var(--signal); color: #fff; border: 0;
+    padding: 13px 20px; border-radius: 10px; cursor: pointer;
+  }
+  button.action:hover { background: #2439ad; }
+  button.action:disabled { background: var(--muted); cursor: progress; }
+  .dropzone {
+    border: 1.5px dashed var(--line); border-radius: 12px; padding: 30px; text-align: center;
+    color: var(--muted); cursor: pointer; background: #f8fafc;
+  }
+  .dropzone.hover { border-color: var(--signal); color: var(--signal); background: #eef2ff; }
+  .preview {
+    width: 100%; aspect-ratio: 1; object-fit: contain; image-rendering: pixelated;
+    background: #0f1620; border-radius: 10px;
+  }
+  .verdict { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+  .verdict small { font-family: var(--mono); font-weight: 500; color: var(--muted); }
+  .hit { color: var(--hit); } .miss { color: var(--miss); }
+  .bars { margin-top: 14px; }
+  .bar { display: grid; grid-template-columns: 92px 1fr 56px; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .bar span:first-child { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .bar .track { height: 12px; background: #e6eaf1; border-radius: 3px; overflow: hidden; }
+  .bar .fill { height: 100%; background: var(--signal); border-radius: 3px; transition: width .35s ease; }
+  .bar:first-child .fill { background: var(--ink); }
+  .bar span:last-child { font-family: var(--mono); font-size: 12px; text-align: right; }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 8px; margin-top: 14px; }
+  .gallery img { width: 100%; border-radius: 8px; cursor: pointer; border: 2px solid transparent; image-rendering: pixelated; }
+  .gallery img:hover, .gallery img.sel { border-color: var(--signal); }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .error { color: var(--miss); font-size: 13px; font-family: var(--mono); }
+  code { font-family: var(--mono); font-size: 12px; background: #e9edf4; padding: 1px 5px; border-radius: 4px; }
+  @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>CIFAR-10 classifier <span id="arch">·</span></h1>
+  <div class="meta" id="status">checking model…</div>
+</header>
+
+<main>
+  <div class="tabs" role="tablist">
+    <button class="tab" id="tab-random" role="tab" aria-selected="true" aria-controls="panel-random">Random test image</button>
+    <button class="tab" id="tab-upload" role="tab" aria-selected="false" aria-controls="panel-upload">Upload an image</button>
+  </div>
+
+  <section class="panel active card" id="panel-random" role="tabpanel" aria-labelledby="tab-random">
+    <div class="row">
+      <div>
+        <button class="action" id="btn-random">Classify a random image</button>
+        <p class="hint">Pulled from the 10,000-image CIFAR-10 test split, so the true label is known and the prediction can be scored.</p>
+        <div class="gallery" id="gallery"></div>
+      </div>
+      <div>
+        <div class="row" style="grid-template-columns: 180px 1fr;">
+          <img class="preview" id="rand-img" alt="" />
+          <div>
+            <p class="verdict" id="rand-verdict">Pick an image to run inference.</p>
+            <div class="bars" id="rand-bars"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel card" id="panel-upload" role="tabpanel" aria-labelledby="tab-upload">
+    <div class="row">
+      <div>
+        <div class="dropzone" id="drop">Drop a PNG or JPEG here, or click to browse.<br /><small>Any size — it is resized to 32×32 before inference.</small></div>
+        <input type="file" id="file" accept="image/*" hidden />
+        <button class="action" id="btn-upload" style="margin-top:12px" disabled>Classify upload</button>
+        <p class="error" id="up-error"></p>
+      </div>
+      <div>
+        <div class="row" style="grid-template-columns: 180px 1fr;">
+          <img class="preview" id="up-img" alt="" />
+          <div>
+            <p class="verdict" id="up-verdict">No file selected.</p>
+            <div class="bars" id="up-bars"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="hint">Same endpoint the grader uses: <code>curl -X POST /predict -F "image=@test_image.png"</code></p>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let selectedFile = null;
+
+function bars(target, topk) {
+  target.innerHTML = topk.map(t => `
+    <div class="bar">
+      <span>${t.class}</span>
+      <div class="track"><div class="fill" style="width:${(t.probability * 100).toFixed(1)}%"></div></div>
+      <span>${(t.probability * 100).toFixed(1)}%</span>
+    </div>`).join("");
+}
+
+async function refreshStatus() {
+  try {
+    const r = await fetch("/info");
+    const d = await r.json();
+    const m = d.model || {};
+    $("arch").textContent = m.architecture ? `/ ${m.architecture}` : "";
+    $("status").textContent = m.architecture
+      ? `val_acc ${(100 * (m.val_accuracy ?? 0)).toFixed(2)}% · epoch ${m.trained_epochs ?? "?"} · ${m.device} · torch ${d.torch_version}`
+      : "no checkpoint loaded yet";
+  } catch { $("status").textContent = "server unreachable"; }
+}
+
+async function loadGallery() {
+  const r = await fetch("/api/samples?n=12");
+  const d = await r.json();
+  $("gallery").innerHTML = (d.samples || []).map(s =>
+    `<img src="${s.thumbnail}" data-id="${s.id}" title="${s.true_label}" alt="${s.true_label}" />`).join("");
+  $("gallery").querySelectorAll("img").forEach(img =>
+    img.onclick = () => runRandom(img.dataset.id, img));
+}
+
+async function runRandom(id, el) {
+  const btn = $("btn-random"); btn.disabled = true;
+  $("gallery").querySelectorAll("img").forEach(i => i.classList.remove("sel"));
+  if (el) el.classList.add("sel");
+  try {
+    const r = await fetch("/api/predict/random", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(id ? { id } : {})
+    });
+    const d = await r.json();
+    if (!r.ok) { $("rand-verdict").textContent = d.error; return; }
+    $("rand-img").src = d.preview;
+    const cls = d.correct ? "hit" : "miss";
+    $("rand-verdict").innerHTML =
+      `<span class="${cls}">${d.predicted_class}</span> · ${(d.confidence * 100).toFixed(1)}%<br />
+       <small>true label ${d.true_label} · ${d.correct ? "correct" : "wrong"} · ${d.inference_ms} ms</small>`;
+    bars($("rand-bars"), d.top_k);
+  } finally { btn.disabled = false; }
+}
+
+async function runUpload() {
+  if (!selectedFile) return;
+  const btn = $("btn-upload"); btn.disabled = true; $("up-error").textContent = "";
+  const form = new FormData();
+  form.append("image", selectedFile);
+  try {
+    const r = await fetch("/predict", { method: "POST", body: form });
+    const d = await r.json();
+    if (!r.ok) { $("up-error").textContent = d.error; return; }
+    $("up-verdict").innerHTML =
+      `${d.predicted_class} · ${(d.confidence * 100).toFixed(1)}%<br />
+       <small>${d.filename} · resized to 32×32 · ${d.inference_ms} ms</small>`;
+    bars($("up-bars"), d.top_k);
+  } catch (e) { $("up-error").textContent = "Request failed: " + e.message; }
+  finally { btn.disabled = false; }
+}
+
+function pickFile(file) {
+  if (!file || !file.type.startsWith("image/")) { $("up-error").textContent = "Choose an image file."; return; }
+  selectedFile = file;
+  $("up-img").src = URL.createObjectURL(file);
+  $("up-verdict").textContent = file.name;
+  $("btn-upload").disabled = false;
+  $("up-error").textContent = "";
+}
+
+$("tab-random").onclick = () => switchTab("random");
+$("tab-upload").onclick = () => switchTab("upload");
+function switchTab(name) {
+  for (const n of ["random", "upload"]) {
+    $("tab-" + n).setAttribute("aria-selected", String(n === name));
+    $("panel-" + n).classList.toggle("active", n === name);
+  }
+}
+
+$("btn-random").onclick = () => runRandom(null, null);
+$("btn-upload").onclick = runUpload;
+$("drop").onclick = () => $("file").click();
+$("file").onchange = (e) => pickFile(e.target.files[0]);
+$("drop").ondragover = (e) => { e.preventDefault(); $("drop").classList.add("hover"); };
+$("drop").ondragleave = () => $("drop").classList.remove("hover");
+$("drop").ondrop = (e) => { e.preventDefault(); $("drop").classList.remove("hover"); pickFile(e.dataTransfer.files[0]); };
+
+refreshStatus(); loadGallery();
+</script>
+</body>
+</html>
