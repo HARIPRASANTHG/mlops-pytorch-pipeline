@@ -1,0 +1,60 @@
+# syntax=docker/dockerfile:1.7
+# ---------------------------------------------------------------------------
+# Multi-stage serving image: inference deps only (no tensorboard/tqdm),
+# non-root, health-checked, listening on 8080.
+# Build:
+#   docker build -f docker/Dockerfile.serve -t mlops-serve:v1 .
+# ---------------------------------------------------------------------------
+
+# ---------- Stage 1: dependencies ----------
+FROM python:3.11-slim AS base
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
+
+WORKDIR /app
+RUN python -m venv "$VIRTUAL_ENV"
+
+COPY requirements/serve.txt ./serve.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r serve.txt
+
+# ---------- Stage 2: serving runtime ----------
+FROM python:3.11-slim AS serving
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH" \
+    MODEL_PATH=/app/checkpoints/classifier_v1.pt \
+    SAMPLE_DIR=/app/data/test_images \
+    TORCH_NUM_THREADS=2 \
+    PORT=8080
+
+WORKDIR /app
+
+COPY --from=base /opt/venv /opt/venv
+COPY src/ ./src/
+COPY configs/ ./configs/
+
+RUN useradd --create-home --uid 1001 appuser && \
+    mkdir -p /app/checkpoints /app/data && \
+    chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8080
+
+# No curl in the image on purpose - the venv's python does the probe instead.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
+  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=4).status==200 else 1)"
+
+LABEL org.opencontainers.image.title="mlops-serve" \
+      org.opencontainers.image.description="Flask inference server for the CIFAR-10 classifier"
+
+# --chdir puts src/ on sys.path so `from model import ...` resolves, and keeps
+# Flask's template folder (src/templates) discoverable.
+CMD ["gunicorn", "--chdir", "/app/src", "--bind", "0.0.0.0:8080", \
+     "--workers", "2", "--threads", "4", "--timeout", "60", \
+     "--access-logfile", "-", "serve:app"]
