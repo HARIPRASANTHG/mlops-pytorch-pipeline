@@ -1,0 +1,60 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pytorch-training
+  namespace: ml-training
+  labels:
+    app: pytorch-training
+    component: training
+spec:
+  backoffLimit: 2
+  completions: 1
+  parallelism: 1
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: pytorch-training
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000            # makes the PVCs writable by the non-root user
+      containers:
+        - name: trainer
+          image: mlops-train:v1
+          imagePullPolicy: IfNotPresent   # image is side-loaded: minikube image load
+          env:
+            - name: TRAINING_CONFIG
+              value: /app/configs/training_config.yaml
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          volumeMounts:
+            - name: config
+              mountPath: /app/configs
+              readOnly: true
+            - name: data
+              mountPath: /app/data
+            - name: checkpoints
+              mountPath: /app/checkpoints
+          resources:
+            requests:
+              cpu: "2"
+              memory: 4Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+      volumes:
+        - name: config
+          configMap:
+            name: training-config
+            items:
+              - key: training_config.yaml
+                path: training_config.yaml
+        - name: data
+          persistentVolumeClaim:
+            claimName: cifar-data-pvc
+        - name: checkpoints
+          persistentVolumeClaim:
+            claimName: model-checkpoints-pvc
