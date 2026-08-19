@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-serving
+  namespace: ml-training
+  labels:
+    app: model-serving
+    component: inference
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: model-serving
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0        # never drop below 2 healthy pods during a rollout
+  template:
+    metadata:
+      labels:
+        app: model-serving
+    spec:
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+        - name: serve
+          image: mlops-serve:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: MODEL_PATH
+              value: /app/checkpoints/classifier_v1.pt
+            - name: SAMPLE_DIR
+              value: /app/data/test_images
+            - name: TORCH_NUM_THREADS
+              value: "2"
+          volumeMounts:
+            - name: checkpoints
+              mountPath: /app/checkpoints
+              readOnly: true
+            - name: data
+              mountPath: /app/data
+              readOnly: true
+            - name: config
+              mountPath: /app/configs
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+      volumes:
+        - name: checkpoints
+          persistentVolumeClaim:
+            claimName: model-checkpoints-pvc
+            readOnly: true
+        - name: data
+          persistentVolumeClaim:
+            claimName: cifar-data-pvc
+            readOnly: true
+        - name: config
+          configMap:
+            name: training-config
