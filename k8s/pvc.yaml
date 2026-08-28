@@ -1,0 +1,25 @@
+# Two claims: the dataset cache is reused across Job re-runs, and the
+# checkpoint claim is what the serving Deployment mounts read-only.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cifar-data-pvc
+  namespace: ml-training
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard      # Minikube's default hostpath provisioner
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-checkpoints-pvc
+  namespace: ml-training
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 2Gi
