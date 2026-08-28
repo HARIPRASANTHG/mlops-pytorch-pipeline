@@ -1,0 +1,66 @@
+# Bonus (5 pts): GPU variant of the training Job.
+# Requires a cluster whose nodes expose nvidia.com/gpu (the NVIDIA device
+# plugin). Docker-driver Minikube on Windows does NOT pass the RTX 5070 Ti
+# through, so this manifest is validated with --dry-run against the local
+# cluster and applied on a GPU node pool. See docs/SETUP.md.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pytorch-training-gpu
+  namespace: ml-training
+  labels:
+    app: pytorch-training
+    component: training
+    accelerator: nvidia
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: pytorch-training
+        accelerator: nvidia
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: trainer
+          image: mlops-train-gpu:v1        # built from requirements/train-gpu.txt
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TRAINING_CONFIG
+              value: /app/configs/training_config.yaml
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+          volumeMounts:
+            - name: config
+              mountPath: /app/configs
+              readOnly: true
+            - name: data
+              mountPath: /app/data
+            - name: checkpoints
+              mountPath: /app/checkpoints
+          resources:
+            requests:
+              cpu: "2"
+              memory: 8Gi
+              nvidia.com/gpu: 1
+            limits:
+              cpu: "4"
+              memory: 12Gi
+              nvidia.com/gpu: 1
+      volumes:
+        - name: config
+          configMap:
+            name: training-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: cifar-data-pvc
+        - name: checkpoints
+          persistentVolumeClaim:
+            claimName: model-checkpoints-pvc

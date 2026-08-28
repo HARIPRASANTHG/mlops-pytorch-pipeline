@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: training-config
+  namespace: ml-training
+  labels:
+    app: pytorch-training
+data:
+  # Mounted at /app/configs/training_config.yaml inside the Job pod.
+  # Epochs are lower than the local GPU run because the Minikube node is CPU-only.
+  training_config.yaml: |
+    model:
+      architecture: resnet18
+      num_classes: 10
+      pretrained: false
+    training:
+      epochs: 3
+      batch_size: 64
+      learning_rate: 0.001
+      weight_decay: 0.0005
+      label_smoothing: 0.1
+      early_stopping_patience: 3
+      num_workers: 2
+      seed: 42
+      device: auto
+      mixed_precision: false
+    data:
+      dataset: cifar10
+      data_dir: /app/data
+    output:
+      checkpoint_dir: /app/checkpoints
+      model_name: classifier_v1.pt
