@@ -20,7 +20,7 @@ data:
       weight_decay: 0.0005
       label_smoothing: 0.1
       early_stopping_patience: 3
-      num_workers: 2
+      num_workers: 12
       seed: 42
       device: auto
       mixed_precision: false
