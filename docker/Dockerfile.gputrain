@@ -1,0 +1,39 @@
+# syntax=docker/dockerfile:1.7
+FROM nvidia/cuda:12.8.0-runtime-ubuntu22.04 AS base
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/opt/venv/bin:$PATH"
+
+# Install Python 3.11 environment
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-venv \
+    python3-pip \
+    && rm -rf /var/lib/apt-lists/*
+
+WORKDIR /app
+
+# Create Virtual Environment
+RUN python3.11 -m venv /opt/venv
+
+ARG REQS=requirements/train-gpu.txt
+COPY ${REQS} ./requirements.txt
+
+# Download dependencies with cache mount enabled
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r requirements.txt
+
+# Final stage
+FROM base AS training
+
+WORKDIR /app
+COPY src/ ./src/
+COPY configs/ ./configs/
+
+RUN useradd --create-home --uid 1000 trainer && \
+    mkdir -p /app/data /app/checkpoints && \
+    chown -R trainer:trainer /app
+
+USER trainer
+ENTRYPOINT ["python3.11", "src/train.py"]

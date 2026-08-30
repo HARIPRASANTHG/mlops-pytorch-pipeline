@@ -21,9 +21,11 @@ WORKDIR /app
 RUN python -m venv "$VIRTUAL_ENV"
 
 # Copied on its own so the (slow) torch install is cached until pins change.
-COPY requirements/train.txt ./train.txt
+# COPY requirements/train.txt ./train.txt
+COPY requirements/train-gpu.txt ./train-gpu.txt
+
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r train.txt
+    pip install --no-cache-dir -r train-gpu.txt
 
 # ---------- Stage 2: training runtime ----------
 FROM python:3.11-slim AS training

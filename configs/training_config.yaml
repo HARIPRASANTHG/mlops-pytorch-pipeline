@@ -7,7 +7,7 @@ model:
 
 training:
   epochs: 20
-  batch_size: 128             # 128 fits comfortably in 12 GB on the RTX 5070 Ti
+  batch_size: 2048             # 2048 fits comfortably in 12 GB on the RTX 5070 Ti
   learning_rate: 0.001
   weight_decay: 0.0005
   label_smoothing: 0.1
